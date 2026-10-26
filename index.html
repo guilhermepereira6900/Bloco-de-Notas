@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Notas & Lembretes iOS 18</title>
+
+    <!-- Meta Tags para PWA no iOS Safari -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Lembretes">
+    <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        ios: {
+                            bgLight: '#f2f2f7',
+                            cardLight: 'rgba(255, 255, 255, 0.82)',
+                            bgDark: '#000000',
+                            cardDark: 'rgba(28, 28, 30, 0.82)',
+                            blue: '#007aff',
+                            green: '#34c759',
+                            red: '#ff3b30',
+                            orange: '#ff9500',
+                            gray: '#8e8e93',
+                            grayLight: '#e5e5ea',
+                            grayDark: '#1c1c1e'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        input, textarea {
+            user-select: text;
+            -webkit-user-select: text;
+        }
+
+        .ios-blur {
+            backdrop-filter: blur(25px) saturate(180%);
+            -webkit-backdrop-filter: blur(25px) saturate(180%);
+        }
+
+        /* Animação do Banner de Notificação iOS 18 */
+        @keyframes slideDownIos {
+            from { transform: translateY(-120%) scale(0.95); opacity: 0; }
+            to { transform: translateY(0) scale(1); opacity: 1; }
+        }
+        .ios-notification-banner {
+            animation: slideDownIos 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        /* Pulse Ring para lembrete ativo */
+        @keyframes pulse-ring {
+            0% { box-shadow: 0 0 0 0 rgba(255, 149, 0, 0.6); }
+            70% { box-shadow: 0 0 0 8px rgba(255, 149, 0, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 149, 0, 0); }
+        }
+        .reminder-active {
+            animation: pulse-ring 2s infinite;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: rgba(142, 142, 147, 0.3); border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-ios-bgLight dark:bg-ios-bgDark text-slate-900 dark:text-slate-100 min-h-full font-sans antialiased transition-colors duration-300 pb-28">
+
+    <!-- SIMULADOR DE NOTIFICAÇÃO NATIVA DO iOS (BANNER FLUTUANTE TOP) -->
+    <div id="iosBannerNotification" class="fixed top-3 left-3 right-3 z-50 max-w-md mx-auto hidden">
+        <div class="ios-blur bg-white/90 dark:bg-zinc-900/90 border border-white/40 dark:border-zinc-700/50 shadow-2xl rounded-3xl p-3.5 flex items-start gap-3.5 ios-notification-banner">
+            <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-400 to-orange-500 flex items-center justify-center text-white text-xl shadow-md shrink-0 mt-0.5">
+                ⏰
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="flex justify-between items-center mb-0.5">
+                    <span class="text-[11px] font-bold tracking-wider uppercase text-ios-orange">Lembrete Agora</span>
+                    <span class="text-[10px] text-ios-gray" id="bannerTime">Agora</span>
+                </div>
+                <h4 id="bannerTitle" class="font-bold text-sm text-slate-900 dark:text-white truncate"></h4>
+                <p id="bannerBody" class="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 mt-0.5"></p>
+            </div>
+            <button onclick="dismissBanner()" class="text-ios-gray hover:text-slate-900 dark:hover:text-white p-1">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- CONTAINER PRINCIPAL -->
+    <div class="max-w-md md:max-w-2xl mx-auto min-h-screen flex flex-col px-4 pt-4 sm:pt-6">
+
+        <!-- CABEÇALHO -->
+        <header class="flex items-center justify-between py-2 mb-3">
+            <div>
+                <span class="text-[11px] font-bold uppercase tracking-wider text-ios-blue">iOS 18 Interactive</span>
+                <h1 class="text-3xl font-extrabold tracking-tight">Notas & Lembretes</h1>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <!-- Botão Testar Notificação -->
+                <button onclick="testNotificationAction()" 
+                        class="px-3 py-1.5 rounded-full bg-ios-blue text-white text-xs font-semibold shadow-sm hover:bg-blue-600 active:scale-95 transition-all flex items-center gap-1.5"
+                        title="Simular Alerta com Som">
+                    <span>🔔</span>
+                    <span class="hidden sm:inline">Testar Alerta</span>
+                </button>
+
+                <!-- Botão Dica de Instalação iOS -->
+                <button onclick="openIosModal()" 
+                        class="p-2.5 rounded-full bg-white/80 dark:bg-ios-cardDark border border-slate-200/80 dark:border-zinc-800 text-ios-blue hover:bg-slate-100 dark:hover:bg-zinc-800 transition-all active:scale-95 shadow-sm"
+                        title="Como Instalar no iPhone">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                </button>
+
+                <!-- Toggle Dark Mode -->
+                <button onclick="toggleDarkMode()" 
+                        class="p-2.5 rounded-full bg-white/80 dark:bg-ios-cardDark border border-slate-200/80 dark:border-zinc-800 text-slate-700 dark:text-amber-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-all active:scale-95 shadow-sm">
+                    <svg id="themeIcon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"></svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- BARRA DE PESQUISA -->
+        <div class="relative mb-3">
+            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-ios-gray">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            </div>
+            <input type="text" id="searchInput" oninput="renderNotes()" placeholder="Buscar notas ou lembretes..." 
+                   class="w-full pl-10 pr-4 py-2.5 bg-slate-200/60 dark:bg-zinc-800/80 text-sm rounded-2xl border-none focus:outline-none focus:ring-2 focus:ring-ios-blue placeholder-ios-gray transition-all">
+        </div>
+
+        <!-- FILTROS (SEGMENTED CONTROL) -->
+        <div class="bg-slate-200/70 dark:bg-zinc-800/80 p-1 rounded-2xl flex text-xs font-semibold mb-4 shadow-inner">
+            <button onclick="setFilter('all')" id="filter-all" class="flex-1 py-1.5 rounded-xl text-center transition-all bg-white dark:bg-zinc-900 shadow-sm text-slate-900 dark:text-white">Todas</button>
+            <button onclick="setFilter('pending')" id="filter-pending" class="flex-1 py-1.5 rounded-xl text-center transition-all text-ios-gray">Pendentes</button>
+            <button onclick="setFilter('reminders')" id="filter-reminders" class="flex-1 py-1.5 rounded-xl text-center transition-all text-ios-gray">Lembretes ⏰</button>
+            <button onclick="setFilter('completed')" id="filter-completed" class="flex-1 py-1.5 rounded-xl text-center transition-all text-ios-gray">Concluídas</button>
+        </div>
+
+        <!-- CONTADOR E STATUS DE TEMPO REAL -->
+        <div class="flex items-center justify-between text-xs text-ios-gray mb-3 px-1">
+            <span id="notesCounter">0 notas</span>
+            <span class="flex items-center gap-1 text-[11px]"><span class="w-2 h-2 rounded-full bg-ios-green inline-block animate-pulse"></span> Verificação em tempo real ativa</span>
+        </div>
+
+        <!-- LISTA DE NOTAS -->
+        <main id="notesList" class="flex-1 space-y-3">
+            <!-- Renderizado via JavaScript -->
+        </main>
+
+        <!-- ESTADO VAZIO -->
+        <div id="emptyState" class="hidden flex-col items-center justify-center py-16 text-center text-ios-gray">
+            <div class="w-16 h-16 rounded-3xl bg-slate-200/60 dark:bg-zinc-800 flex items-center justify-center mb-3 text-3xl">
+                📝
+            </div>
+            <p class="font-bold text-base text-slate-800 dark:text-slate-200">Nenhuma nota cadastrada</p>
+            <p class="text-xs max-w-xs mt-1">Toque no botão "+" no canto inferior para adicionar sua primeira anotação com alarme.</p>
+        </div>
+
+    </div>
+
+    <!-- BOTÃO FLUTUANTE DE ADICIONAR (FAB) -->
+    <div class="fixed bottom-6 right-6 z-30">
+        <button onclick="openNoteModal()" 
+                class="w-14 h-14 rounded-full bg-ios-blue text-white shadow-xl flex items-center justify-center hover:bg-blue-600 active:scale-90 transition-all">
+            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
+        </button>
+    </div>
+
+    <!-- MODAL DE CRIAR / EDITAR NOTA -->
+    <div id="noteModal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm hidden items-end sm:items-center justify-center transition-opacity">
+        <div class="bg-ios-bgLight dark:bg-zinc-900 w-full max-w-md sm:rounded-3xl rounded-t-3xl p-5 shadow-2xl transition-all border border-white/20 dark:border-zinc-800">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="modalTitle" class="text-lg font-bold">Nova Nota & Lembrete</h3>
+                <button onclick="closeNoteModal()" class="text-ios-gray hover:text-slate-900 dark:hover:text-white p-1">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+
+            <form id="noteForm" onsubmit="saveNote(event)" class="space-y-4">
+                <input type="hidden" id="noteId">
+
+                <div>
+                    <label class="block text-xs font-semibold text-ios-gray uppercase mb-1">Título</label>
+                    <input type="text" id="noteTitleInput" required placeholder="Ex: Tomar remédio, Comprar ingredientes..." 
+                           class="w-full px-3.5 py-2.5 bg-white dark:bg-zinc-800 rounded-xl border border-slate-200 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-ios-blue text-sm">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-ios-gray uppercase mb-1">Anotações / Conteúdo</label>
+                    <textarea id="noteContentInput" rows="3" placeholder="Detalhes adicionais da sua nota..." 
+                              class="w-full px-3.5 py-2.5 bg-white dark:bg-zinc-800 rounded-xl border border-slate-200 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-ios-blue text-sm resize-none"></textarea>
+                </div>
+
+                <div class="bg-white dark:bg-zinc-800 p-3.5 rounded-2xl border border-slate-200 dark:border-zinc-700 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="text-base">⏰</span>
+                            <span class="text-sm font-medium">Ativar Lembrete Agendado</span>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="hasReminderToggle" onchange="toggleReminderField()" class="sr-only peer">
+                            <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-ios-green"></div>
+                        </label>
+                    </div>
+
+                    <div id="reminderDateField" class="hidden pt-2 border-t border-slate-100 dark:border-zinc-700">
+                        <label class="block text-xs text-ios-gray mb-1">Data e Hora do Alerta:</label>
+                        <input type="datetime-local" id="reminderTimeInput" 
+                               class="w-full px-3 py-2 bg-slate-100 dark:bg-zinc-900 rounded-xl border-none text-sm focus:ring-2 focus:ring-ios-blue">
+                    </div>
+                </div>
+
+                <div class="flex gap-3 pt-2">
+                    <button type="button" onclick="closeNoteModal()" 
+                            class="flex-1 py-3 bg-slate-200 dark:bg-zinc-800 font-semibold rounded-xl text-sm active:scale-95 transition-all">Cancelar</button>
+                    <button type="submit" 
+                            class="flex-1 py-3 bg-ios-blue text-white font-semibold rounded-xl text-sm shadow-md hover:bg-blue-600 active:scale-95 transition-all">Salvar Nota</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL CONFIRMAÇÃO DE EXCLUSÃO (iOS DIALOG) -->
+    <div id="confirmModal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="bg-ios-cardLight dark:bg-zinc-900 w-full max-w-xs rounded-3xl p-5 shadow-2xl text-center border border-white/20 dark:border-zinc-800 space-y-3">
+            <h3 class="text-base font-bold">Apagar Nota?</h3>
+            <p class="text-xs text-ios-gray">Esta ação não poderá ser desfeita.</p>
+            <div class="flex flex-col gap-2 pt-2">
+                <button id="btnConfirmDelete" class="w-full py-2.5 bg-ios-red text-white font-semibold rounded-xl text-sm active:scale-95 transition-all">Apagar</button>
+                <button onclick="closeConfirmModal()" class="w-full py-2.5 bg-slate-200 dark:bg-zinc-800 font-semibold rounded-xl text-sm active:scale-95 transition-all">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL GUIA DE INSTALAÇÃO NO IPHONE -->
+    <div id="iosModal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="bg-white dark:bg-zinc-900 w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4 border border-slate-200/50 dark:border-zinc-800 text-center">
+            <div class="w-12 h-12 bg-ios-blue/10 text-ios-blue rounded-2xl flex items-center justify-center mx-auto text-2xl font-bold">
+                📱
+            </div>
+            
+            <h3 class="text-lg font-bold">Instalar no seu iPhone</h3>
+            <p class="text-xs text-ios-gray leading-relaxed">
+                Você pode adicionar este web app diretamente na tela de início do seu iOS:
+            </p>
+
+            <div class="space-y-2.5 text-left text-xs text-slate-700 dark:text-slate-300">
+                <div class="flex items-start gap-2.5 bg-slate-100 dark:bg-zinc-800 p-2.5 rounded-xl">
+                    <span class="bg-ios-blue text-white font-bold w-4 h-4 rounded-full flex items-center justify-center text-[10px] shrink-0 mt-0.5">1</span>
+                    <span>Abra este site utilizando o aplicativo <strong>Safari</strong>.</span>
+                </div>
+                <div class="flex items-start gap-2.5 bg-slate-100 dark:bg-zinc-800 p-2.5 rounded-xl">
+                    <span class="bg-ios-blue text-white font-bold w-4 h-4 rounded-full flex items-center justify-center text-[10px] shrink-0 mt-0.5">2</span>
+                    <span>Toque no ícone de <strong>Compartilhar</strong> (quadrado com seta para cima).</span>
+                </div>
+                <div class="flex items-start gap-2.5 bg-slate-100 dark:bg-zinc-800 p-2.5 rounded-xl">
+                    <span class="bg-ios-blue text-white font-bold w-4 h-4 rounded-full flex items-center justify-center text-[10px] shrink-0 mt-0.5">3</span>
+                    <span>Selecione <strong>"Adicionar à Tela de Início"</strong>.</span>
+                </div>
+            </div>
+
+            <button onclick="closeIosModal()" class="w-full py-3 bg-ios-blue text-white font-semibold rounded-xl text-sm active:scale-95 transition-all">Entendi!</button>
+        </div>
+    </div>
+
+    <!-- SCRIPT PRINCIPAL DA APLICAÇÃO -->
+    <script>
+        // --- SAFE STORAGE FALLBACK (Previne erro de iframe sandbox) ---
+        let memoryStorage = null;
+
+        function safeGetNotes() {
+            try {
+                const data = localStorage.getItem('ios18_notes_simulation');
+                return data ? JSON.parse(data) : null;
+            } catch (e) {
+                return memoryStorage;
+            }
+        }
+
+        function safeSaveNotes(data) {
+            try {
+                localStorage.setItem('ios18_notes_simulation', JSON.stringify(data));
+            } catch (e) {
+                memoryStorage = data;
+            }
+        }
+
+        // --- ESTADO INICIAL & DEMO DATA ---
+        let notes = safeGetNotes();
+        let currentFilter = 'all';
+        let deleteTargetId = null;
+
+        if (!notes || notes.length === 0) {
+            const now = new Date();
+            // Criar lembrete em 15 segundos para a simulação disparar sozinha
+            const activeReminderTime = new Date(now.getTime() + 15 * 1000).toISOString().slice(0, 16);
+
+            notes = [
+                {
+                    id: '1',
+                    title: 'Bem-vindo ao Lembretes iOS 18 🍎',
+                    content: 'Este é o seu novo bloco de notas interativo! Você pode criar anotações com data e hora de alerta.',
+                    completed: false,
+                    createdAt: new Date().toISOString(),
+                    reminderTime: '',
+                    notified: false
+                },
+                {
+                    id: '2',
+                    title: 'Lembrete Automático de Teste 💊',
+                    content: 'Este alarme vai disparar em instantes com efeito sonoro e banner simulado!',
+                    completed: false,
+                    createdAt: new Date().toISOString(),
+                    reminderTime: activeReminderTime,
+                    notified: false
+                },
+                {
+                    id: '3',
+                    title: 'Comprar pó de café ☕',
+                    content: 'Passar no mercado após o trabalho.',
+                    completed: true,
+                    createdAt: new Date().toISOString(),
+                    reminderTime: '',
+                    notified: false
+                }
+            ];
+            safeSaveNotes(notes);
+        }
+
+        // --- INICIALIZAÇÃO ---
+        window.addEventListener('DOMContentLoaded', () => {
+            initTheme();
+            renderNotes();
+            
+            // Loop contínuo a cada 3 segundos para verificar lembretes ativos
+            setInterval(checkReminders, 3000);
+        });
+
+        // --- SOM DE CHIME APPLE (WEB AUDIO API) ---
+        function playAppleChime() {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
+                const ctx = new AudioContext();
+                if (ctx.state === 'suspended') {
+                    ctx.resume();
+                }
+                const now = ctx.currentTime;
+
+                // Tom 1
+                const osc1 = ctx.createOscillator();
+                const gain1 = ctx.createGain();
+                osc1.type = 'sine';
+                osc1.frequency.setValueAtTime(659.25, now); // E5
+                gain1.gain.setValueAtTime(0.25, now);
+                gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+                osc1.connect(gain1);
+                gain1.connect(ctx.destination);
+                osc1.start(now);
+                osc1.stop(now + 0.6);
+
+                // Tom 2 (Harmônico superior)
+                const osc2 = ctx.createOscillator();
+                const gain2 = ctx.createGain();
+                osc2.type = 'sine';
+                osc2.frequency.setValueAtTime(880, now + 0.1); // A5
+                gain2.gain.setValueAtTime(0.3, now + 0.1);
+                gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
+                osc2.connect(gain2);
+                gain2.connect(ctx.destination);
+                osc2.start(now + 0.1);
+                osc2.stop(now + 0.9);
+            } catch (e) {
+                console.log("Audio de alarme desativado pelo navegador", e);
+            }
+        }
+
+        // --- VERIFICAÇÃO DE LEMBRETES EM TEMPO REAL ---
+        function checkReminders() {
+            const now = new Date();
+
+            notes.forEach(note => {
+                if (!note.completed && note.reminderTime && !note.notified) {
+                    const reminderDate = new Date(note.reminderTime);
+                    if (reminderDate <= now) {
+                        note.notified = true;
+                        safeSaveNotes(notes);
+                        renderNotes();
+
+                        // Tocar Som + Mostrar Banner iOS Simulado
+                        playAppleChime();
+                        showIosBanner(note.title, note.content || 'Horário do seu lembrete agendado!');
+                    }
+                }
+            });
+        }
+
+        // --- SIMULAÇÃO DE BANNER DE NOTIFICAÇÃO DO iOS ---
+        function showIosBanner(title, body) {
+            const banner = document.getElementById('iosBannerNotification');
+            document.getElementById('bannerTitle').innerText = title;
+            document.getElementById('bannerBody').innerText = body;
+            document.getElementById('bannerTime').innerText = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            
+            banner.classList.remove('hidden');
+
+            // Ocultar automaticamente após 7 segundos
+            setTimeout(() => {
+                dismissBanner();
+            }, 7000);
+        }
+
+        function dismissBanner() {
+            document.getElementById('iosBannerNotification').classList.add('hidden');
+        }
+
+        function testNotificationAction() {
+            playAppleChime();
+            showIosBanner('Alerta de Teste do iOS 18 🔔', 'Este é o modelo de notificação simulado com som de chime estilo Apple!');
+        }
+
+        // --- GERENCIAMENTO DE NOTAS ---
+        function renderNotes() {
+            const container = document.getElementById('notesList');
+            const emptyState = document.getElementById('emptyState');
+            const searchQuery = document.getElementById('searchInput').value.toLowerCase();
+
+            let filtered = notes.filter(note => {
+                const matchesSearch = note.title.toLowerCase().includes(searchQuery) || 
+                                      (note.content && note.content.toLowerCase().includes(searchQuery));
+                
+                if (!matchesSearch) return false;
+
+                if (currentFilter === 'pending') return !note.completed;
+                if (currentFilter === 'completed') return note.completed;
+                if (currentFilter === 'reminders') return Boolean(note.reminderTime);
+                return true;
+            });
+
+            document.getElementById('notesCounter').innerText = `${filtered.length} ${filtered.length === 1 ? 'nota' : 'notas'}`;
+            container.innerHTML = '';
+
+            if (filtered.length === 0) {
+                emptyState.classList.remove('hidden');
+                emptyState.classList.add('flex');
+            } else {
+                emptyState.classList.add('hidden');
+                emptyState.classList.remove('flex');
+
+                filtered.forEach(note => {
+                    const isOverdue = note.reminderTime && new Date(note.reminderTime) <= new Date() && !note.completed;
+
+                    const card = document.createElement('div');
+                    card.className = `bg-white/80 dark:bg-zinc-900/90 p-4 rounded-2xl border border-slate-200/80 dark:border-zinc-800 shadow-sm transition-all duration-200 relative ${note.completed ? 'opacity-55' : ''} ${isOverdue ? 'reminder-active border-ios-orange/50' : ''}`;
+
+                    const dateFormatted = note.reminderTime ? formatReminderDate(note.reminderTime) : '';
+
+                    card.innerHTML = `
+                        <div class="flex items-start gap-3">
+                            <button onclick="toggleComplete('${note.id}')" class="mt-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${note.completed ? 'bg-ios-green border-ios-green text-white' : 'border-slate-300 dark:border-zinc-600 hover:border-ios-blue'}">
+                                ${note.completed ? '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>' : ''}
+                            </button>
+
+                            <div class="flex-1 min-w-0 cursor-pointer" onclick="editNote('${note.id}')">
+                                <h3 class="font-bold text-base leading-snug break-words ${note.completed ? 'line-through text-ios-gray' : 'text-slate-900 dark:text-white'}">${escapeHtml(note.title)}</h3>
+                                ${note.content ? `<p class="text-xs text-ios-gray mt-1 line-clamp-2 break-words leading-relaxed">${escapeHtml(note.content)}</p>` : ''}
+                                
+                                ${note.reminderTime ? `
+                                    <div class="mt-2.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold ${isOverdue ? 'bg-amber-500/10 text-ios-orange' : 'bg-slate-100 dark:bg-zinc-800 text-ios-blue'}">
+                                        <span>⏰</span>
+                                        <span>${dateFormatted} ${isOverdue ? '(Vencido/Ativo)' : ''}</span>
+                                    </div>
+                                ` : ''}
+                            </div>
+
+                            <button onclick="promptDeleteNote('${note.id}')" class="text-slate-300 dark:text-zinc-600 hover:text-ios-red dark:hover:text-ios-red p-1 transition-colors">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+            }
+        }
+
+        function saveNote(e) {
+            e.preventDefault();
+            const id = document.getElementById('noteId').value;
+            const title = document.getElementById('noteTitleInput').value.trim();
+            const content = document.getElementById('noteContentInput').value.trim();
+            const hasReminder = document.getElementById('hasReminderToggle').checked;
+            const reminderTime = hasReminder ? document.getElementById('reminderTimeInput').value : '';
+
+            if (!title) return;
+
+            if (id) {
+                const index = notes.findIndex(n => n.id === id);
+                if (index !== -1) {
+                    const oldTime = notes[index].reminderTime;
+                    notes[index].title = title;
+                    notes[index].content = content;
+                    notes[index].reminderTime = reminderTime;
+                    if (oldTime !== reminderTime) {
+                        notes[index].notified = false;
+                    }
+                }
+            } else {
+                const newNote = {
+                    id: Date.now().toString(),
+                    title,
+                    content,
+                    completed: false,
+                    createdAt: new Date().toISOString(),
+                    reminderTime,
+                    notified: false
+                };
+                notes.unshift(newNote);
+            }
+
+            safeSaveNotes(notes);
+            renderNotes();
+            closeNoteModal();
+        }
+
+        function toggleComplete(id) {
+            const note = notes.find(n => n.id === id);
+            if (note) {
+                note.completed = !note.completed;
+                safeSaveNotes(notes);
+                renderNotes();
+            }
+        }
+
+        function promptDeleteNote(id) {
+            deleteTargetId = id;
+            document.getElementById('confirmModal').classList.remove('hidden');
+            document.getElementById('confirmModal').classList.add('flex');
+            
+            document.getElementById('btnConfirmDelete').onclick = () => {
+                if (deleteTargetId) {
+                    notes = notes.filter(n => n.id !== deleteTargetId);
+                    safeSaveNotes(notes);
+                    renderNotes();
+                }
+                closeConfirmModal();
+            };
+        }
+
+        function closeConfirmModal() {
+            deleteTargetId = null;
+            document.getElementById('confirmModal').classList.add('hidden');
+            document.getElementById('confirmModal').classList.remove('flex');
+        }
+
+        function editNote(id) {
+            const note = notes.find(n => n.id === id);
+            if (!note) return;
+
+            document.getElementById('noteId').value = note.id;
+            document.getElementById('noteTitleInput').value = note.title;
+            document.getElementById('noteContentInput').value = note.content || '';
+            
+            const hasReminder = Boolean(note.reminderTime);
+            document.getElementById('hasReminderToggle').checked = hasReminder;
+            
+            const reminderField = document.getElementById('reminderDateField');
+            if (hasReminder) {
+                reminderField.classList.remove('hidden');
+                document.getElementById('reminderTimeInput').value = note.reminderTime;
+            } else {
+                reminderField.classList.add('hidden');
+            }
+
+            document.getElementById('modalTitle').innerText = 'Editar Nota';
+            document.getElementById('noteModal').classList.remove('hidden');
+            document.getElementById('noteModal').classList.add('flex');
+        }
+
+        // --- FILTROS & CONTROLES ---
+        function setFilter(filterType) {
+            currentFilter = filterType;
+            ['all', 'pending', 'reminders', 'completed'].forEach(type => {
+                const btn = document.getElementById(`filter-${type}`);
+                if (type === filterType) {
+                    btn.className = "flex-1 py-1.5 rounded-xl text-center transition-all bg-white dark:bg-zinc-900 shadow-sm text-slate-900 dark:text-white font-bold";
+                } else {
+                    btn.className = "flex-1 py-1.5 rounded-xl text-center transition-all text-ios-gray";
+                }
+            });
+            renderNotes();
+        }
+
+        function openNoteModal() {
+            document.getElementById('noteId').value = '';
+            document.getElementById('noteForm').reset();
+            document.getElementById('reminderDateField').classList.add('hidden');
+            document.getElementById('modalTitle').innerText = 'Nova Nota & Lembrete';
+            document.getElementById('noteModal').classList.remove('hidden');
+            document.getElementById('noteModal').classList.add('flex');
+        }
+
+        function closeNoteModal() {
+            document.getElementById('noteModal').classList.add('hidden');
+            document.getElementById('noteModal').classList.remove('flex');
+        }
+
+        function toggleReminderField() {
+            const toggle = document.getElementById('hasReminderToggle');
+            const field = document.getElementById('reminderDateField');
+            if (toggle.checked) {
+                field.classList.remove('hidden');
+                if (!document.getElementById('reminderTimeInput').value) {
+                    const defaultTime = new Date(Date.now() + 15 * 60 * 1000);
+                    document.getElementById('reminderTimeInput').value = defaultTime.toISOString().slice(0, 16);
+                }
+            } else {
+                field.classList.add('hidden');
+            }
+        }
+
+        function openIosModal() {
+            document.getElementById('iosModal').classList.remove('hidden');
+            document.getElementById('iosModal').classList.add('flex');
+        }
+
+        function closeIosModal() {
+            document.getElementById('iosModal').classList.add('hidden');
+            document.getElementById('iosModal').classList.remove('flex');
+        }
+
+        // --- MODO ESCURO / CLARO ---
+        function initTheme() {
+            let isDark = false;
+            try {
+                isDark = localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            } catch (e) {
+                isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            }
+
+            if (isDark) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+            updateThemeIcon(isDark);
+        }
+
+        function toggleDarkMode() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            try {
+                localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            } catch(e) {}
+            updateThemeIcon(isDark);
+        }
+
+        function updateThemeIcon(isDark) {
+            const icon = document.getElementById('themeIcon');
+            if (isDark) {
+                icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>`;
+            } else {
+                icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>`;
+            }
+        }
+
+        // --- UTILITÁRIOS ---
+        function formatReminderDate(dateString) {
+            const d = new Date(dateString);
+            return d.toLocaleString('pt-BR', {
+                day: '2-digit',
+                month: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text.replace(/[&<>"']/g, function(m) {
+                return {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;'
+                };
+            });
+        }
+    </script>
+</body>
+</html>
